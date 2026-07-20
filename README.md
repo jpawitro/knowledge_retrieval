@@ -39,7 +39,7 @@ This:
 1. Splits `tb880.pdf` into chapters (auto-detected via bookmarks, falling back to a
    heading heuristic) and writes them to `references/tb880/`.
 2. Converts each chapter PDF in `references/tb880/` to Markdown using the `marker`
-   engine (default 4 workers) and writes the results to `outputs/tb880/`.
+   engine (default 1 worker) and writes the results to `outputs/tb880/`.
 
 The output folder name is derived from the input file's stem by default (`tb880.pdf` ->
 `tb880/`), so split PDFs and their converted Markdown always land in matching
@@ -83,8 +83,8 @@ Run `knowledge-retrieval-extract -h` for the full option list.
 
 | Engine    | Package      | Concurrency knob        |
 |-----------|--------------|--------------------------|
-| `marker`  | `marker-pdf` | `--workers` (default 4)  |
-| `docling` | `docling`    | `--num-threads` (default 4) |
+| `marker`  | `marker-pdf` | `--workers` (default 1)  |
+| `docling` | `docling`    | `--num-threads` (default 1) |
 
 Select the engine with `--engine {marker,docling}` on `knowledge-retrieval`. Both engines
 run as subprocesses of their own CLI, so any of their own flags can be passed through

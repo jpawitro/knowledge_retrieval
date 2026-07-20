@@ -27,7 +27,7 @@ def build_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""\
 examples:
-  %(prog)s input.pdf                          # split + convert with marker, 4 workers
+  %(prog)s input.pdf                          # split + convert with marker, 1 worker
   %(prog)s input.pdf --engine docling         # use docling instead
   %(prog)s input.pdf --workers 8              # more parallelism
   %(prog)s input.pdf --name tb880             # override the output folder name
@@ -65,8 +65,8 @@ examples:
         help=f"PDF-to-Markdown conversion engine (default: {DEFAULT_ENGINE})",
     )
     parser.add_argument(
-        "--workers", type=int, default=4,
-        help="parallel workers/threads for the conversion engine (default: 4)",
+        "--workers", type=int, default=1,
+        help="parallel workers/threads for the conversion engine (default: 1)",
     )
     parser.add_argument(
         "--skip-split", action="store_true",
