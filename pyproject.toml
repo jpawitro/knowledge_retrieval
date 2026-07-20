@@ -1,0 +1,27 @@
+[project]
+name = "knowledge-retrieval"
+version = "1.0.0"
+description = "Split PDFs into chapters and convert them to Markdown via pluggable engines (marker, docling)"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "pypdf>=6.0.0",
+    "marker-pdf>=1.10.0",
+]
+
+[project.optional-dependencies]
+docling = [
+    "docling>=2.100.0",
+]
+
+[project.scripts]
+knowledge-retrieval = "knowledge_retrieval.pipeline:main"
+knowledge-retrieval-extract = "knowledge_retrieval.extract:main"
+knowledge-retrieval-split = "knowledge_retrieval.split_chapters:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
