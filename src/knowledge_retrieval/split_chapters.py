@@ -77,6 +77,31 @@ def detect_heading_chapters(reader: PdfReader, min_gap: int = 2) -> list[Chapter
     return chapters
 
 
+def merge_same_page_chapters(chapters: list[Chapter]) -> list[Chapter]:
+    """Collapse consecutive chapters whose bookmarks land on the same page.
+
+    When two headings (e.g. "1. Scope" and "2. Normative references") sit on
+    the same physical page, splitting them as separate chapters gives the
+    first one a zero-page range once end - start is computed - pypdf writes
+    that as a technically-valid-but-empty PDF, which pypdfium2/Marker then
+    refuses to open ("Failed to load document (PDFium: Success)"). Merging
+    same-start-page chapters into one entry avoids ever producing that file.
+    """
+    if not chapters:
+        return chapters
+
+    merged: list[Chapter] = [chapters[0]]
+    for ch in chapters[1:]:
+        if ch.start_page == merged[-1].start_page:
+            merged[-1] = Chapter(
+                title=f"{merged[-1].title} + {ch.title}",
+                start_page=merged[-1].start_page,
+            )
+        else:
+            merged.append(ch)
+    return merged
+
+
 def split_by_chapters(chapters: list[Chapter], page_count: int) -> list[tuple[Chapter, int, int]]:
     """Turn chapter start pages into (chapter, start, end_exclusive) ranges."""
     ranges = []
@@ -95,6 +120,9 @@ def sanitize_filename(title: str, max_len: int = 60) -> str:
 def write_chapters(reader: PdfReader, ranges, output_dir: Path) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     for i, (ch, start, end) in enumerate(ranges, start=1):
+        if end <= start:
+            print(f"  SKIPPED (zero-page range): {ch.title} (page {start + 1})")
+            continue
         writer = PdfWriter()
         for p in range(start, end):
             writer.add_page(reader.pages[p])
@@ -170,7 +198,27 @@ examples:
             "or check the PDF manually - this heuristic won't catch every layout."
         )
 
+    original_count = len(chapters)
+    chapters = merge_same_page_chapters(chapters)
+    if len(chapters) < original_count:
+        print(
+            f"Merged {original_count - len(chapters)} chapter(s) that shared a "
+            "start page with the next chapter (e.g. Scope + Normative "
+            "references landing on the same page)."
+        )
+
     ranges = split_by_chapters(chapters, page_count)
+
+    # Safety net: a zero-page range would produce an empty PDF that PDFium
+    # refuses to open. Should be unreachable after the merge above, but skip
+    # and warn rather than silently write a broken file if it ever recurs.
+    safe_ranges = []
+    for ch, start, end in ranges:
+        if end <= start:
+            print(f"  WARNING: skipping '{ch.title}' - empty page range ({start}, {end})")
+            continue
+        safe_ranges.append((ch, start, end))
+    ranges = safe_ranges
 
     print()
     for ch, start, end in ranges:

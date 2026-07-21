@@ -15,6 +15,7 @@ from knowledge_retrieval.engines import DEFAULT_ENGINE, ENGINES, get_engine
 from knowledge_retrieval.split_chapters import (
     detect_heading_chapters,
     get_bookmark_chapters,
+    merge_same_page_chapters,
     split_by_chapters,
     write_chapters,
 )
@@ -118,7 +119,27 @@ def main() -> None:
                 "--min-gap, or check the PDF manually - this heuristic won't catch every layout."
             )
 
+        original_count = len(chapters)
+        chapters = merge_same_page_chapters(chapters)
+        if len(chapters) < original_count:
+            print(
+                f"Merged {original_count - len(chapters)} chapter(s) that shared a "
+                "start page with the next chapter (e.g. Scope + Normative "
+                "references landing on the same page)."
+            )
+
         ranges = split_by_chapters(chapters, page_count)
+
+        # Safety net: a zero-page range would produce an empty PDF that PDFium
+        # refuses to open. Should be unreachable after the merge above, but skip
+        # and warn rather than silently write a broken file if it ever recurs.
+        safe_ranges = []
+        for ch, start, end in ranges:
+            if end <= start:
+                print(f"  WARNING: skipping '{ch.title}' - empty page range ({start}, {end})")
+                continue
+            safe_ranges.append((ch, start, end))
+        ranges = safe_ranges
 
         print()
         for ch, start, end in ranges:
