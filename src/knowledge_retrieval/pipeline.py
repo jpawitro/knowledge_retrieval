@@ -22,6 +22,7 @@ from knowledge_retrieval.split_chapters import (
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Build the argparse parser for the unified split+convert CLI."""
     parser = argparse.ArgumentParser(
         prog="knowledge-retrieval",
         description="Split a PDF into chapters and convert each chapter to Markdown.",
@@ -77,7 +78,8 @@ examples:
     return parser
 
 
-def main() -> None:
+def main() -> None:  # pylint: disable=too-many-locals,too-many-branches,too-many-statements
+    """CLI entry point: split the input PDF into chapters, then convert them."""
     parser = build_parser()
 
     argv = sys.argv[1:]

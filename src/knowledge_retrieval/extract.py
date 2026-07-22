@@ -9,7 +9,7 @@ from pypdf import PdfReader, PdfWriter
 PAGE_TOKEN_RE = re.compile(r"^\d+(-\d+)?$")
 
 
-def parse_pages(spec: str, page_count: int) -> list[int]:
+def parse_pages(spec: str, page_count: int) -> list[int]:  # pylint: disable=too-many-branches
     """Parse a page spec like '1-5' or '1,3,5' or '1-3,7,9-10' into 0-indexed page numbers."""
     spec = spec.strip()
     if not spec:
@@ -55,6 +55,7 @@ def parse_pages(spec: str, page_count: int) -> list[int]:
 
 
 def extract_pdf(input_path: Path, pages_spec: str, output_path: Path) -> None:
+    """Write the pages matching `pages_spec` from `input_path` to `output_path`."""
     reader = PdfReader(str(input_path))
     page_indices = parse_pages(pages_spec, len(reader.pages))
 
@@ -68,6 +69,7 @@ def extract_pdf(input_path: Path, pages_spec: str, output_path: Path) -> None:
 
 
 def main() -> None:
+    """CLI entry point: parse args and extract the requested pages."""
     parser = argparse.ArgumentParser(
         prog="knowledge-retrieval-extract",
         description="Extract a page range/subset from a PDF into a new PDF file.",

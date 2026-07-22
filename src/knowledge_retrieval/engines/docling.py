@@ -1,4 +1,8 @@
 """Wraps the `docling convert` CLI for batch PDF -> Markdown conversion."""
+# pylint: disable=duplicate-code
+# The engine wrapper modules share a uniform "check binary, build command,
+# subprocess.run" shape by design, so each one reads the same at a glance -
+# that's deliberate consistency across sibling modules, not copy-paste debt.
 
 import shutil
 import subprocess
@@ -9,6 +13,7 @@ COMMAND = "docling"
 
 
 def convert(input_dir: Path, output_dir: Path, workers: int, extra_args: list[str]) -> None:
+    """Convert every PDF in `input_dir` to Markdown via the `docling` CLI."""
     if shutil.which(COMMAND) is None:
         raise RuntimeError(
             f"'{COMMAND}' was not found on PATH. Install it with 'pip install {PACKAGE}'."

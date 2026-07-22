@@ -1,17 +1,30 @@
 [project]
 name = "knowledge-retrieval"
 version = "1.0.0"
-description = "Split PDFs into chapters and convert them to Markdown via pluggable engines (marker, docling)"
+description = "Split PDFs into chapters and convert them to Markdown via pluggable engines (marker, docling, mineru, paddleocr)"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "pypdf>=6.0.0",
-    "marker-pdf>=1.10.0",
 ]
 
 [project.optional-dependencies]
+marker = [
+    "marker-pdf>=1.10.0",
+]
 docling = [
     "docling>=2.100.0",
+]
+mineru = [
+    "mineru[core]>=2.0.0",
+]
+paddleocr = [
+    "paddleocr[doc-parser]>=3.0.0",
+    "paddlepaddle>=3.0.0",
+]
+test = [
+    "pytest>=8.0.0",
+    "reportlab>=4.0.0",
 ]
 
 [project.scripts]
@@ -25,3 +38,14 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.pytest.ini_options]
+markers = [
+    "slow: exercises a real conversion engine end-to-end (downloads/loads models on first run)",
+]
+
+[tool.pylint.format]
+max-line-length = 120
+
+[tool.ruff]
+line-length = 120

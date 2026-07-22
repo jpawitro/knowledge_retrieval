@@ -11,6 +11,8 @@ from pypdf import PdfReader, PdfWriter
 
 @dataclass
 class Chapter:
+    """A detected chapter: its title and 0-indexed start page."""
+
     title: str
     start_page: int  # 0-indexed
 
@@ -28,6 +30,7 @@ def get_bookmark_chapters(reader: PdfReader, max_depth: int = 0) -> list[Chapter
     chapters: list[Chapter] = []
 
     def walk(outline_items, depth=0):
+        """Recurse through the outline, collecting items down to max_depth."""
         for item in outline_items:
             if isinstance(item, list):
                 if depth < max_depth:
@@ -36,7 +39,10 @@ def get_bookmark_chapters(reader: PdfReader, max_depth: int = 0) -> list[Chapter
             if depth <= max_depth:
                 try:
                     page_num = reader.get_destination_page_number(item)
-                except Exception:
+                # Malformed bookmark destinations can raise a range of pypdf
+                # errors depending on what's broken; skip the entry rather
+                # than aborting the whole split over one bad bookmark.
+                except Exception:  # pylint: disable=broad-exception-caught
                     continue
                 chapters.append(Chapter(title=item.title, start_page=page_num))
 
@@ -112,12 +118,14 @@ def split_by_chapters(chapters: list[Chapter], page_count: int) -> list[tuple[Ch
 
 
 def sanitize_filename(title: str, max_len: int = 60) -> str:
+    """Turn a chapter title into a safe, length-capped filename fragment."""
     name = re.sub(r"[^\w\s-]", "", title).strip()
     name = re.sub(r"\s+", "_", name)
     return name[:max_len] or "chapter"
 
 
 def write_chapters(reader: PdfReader, ranges, output_dir: Path) -> None:
+    """Write one PDF file per (chapter, start, end) range into output_dir."""
     output_dir.mkdir(parents=True, exist_ok=True)
     for i, (ch, start, end) in enumerate(ranges, start=1):
         if end <= start:
@@ -134,6 +142,7 @@ def write_chapters(reader: PdfReader, ranges, output_dir: Path) -> None:
 
 
 def main() -> None:
+    """CLI entry point: detect chapters in the input PDF and write them out."""
     parser = argparse.ArgumentParser(
         prog="knowledge-retrieval-split",
         description="Split a PDF into one file per chapter, using embedded "

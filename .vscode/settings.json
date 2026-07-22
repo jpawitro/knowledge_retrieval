@@ -1,0 +1,11 @@
+{
+    "python.testing.pytestArgs": [
+        "tests"
+    ],
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestEnabled": true,
+    "python-envs.defaultEnvManager": "ms-python.python:pyenv",
+    "editor.rulers": [120],
+    "flake8.args": ["--max-line-length=120"],
+    "pylint.args": ["--max-line-length=120"]
+}
