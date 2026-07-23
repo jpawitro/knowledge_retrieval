@@ -7,6 +7,8 @@ Runs the full pipeline in one command:
 
 import argparse
 import sys
+import tempfile
+from contextlib import contextmanager
 from pathlib import Path
 
 from pypdf import PdfReader
@@ -21,6 +23,16 @@ from knowledge_retrieval.split_chapters import (
 )
 
 
+@contextmanager
+def _single_file_dir(path: Path):
+    """Yield a scratch directory containing only `path`, since every engine's
+    `convert()` batch-processes whatever PDFs it finds in a directory."""
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_dir = Path(tmp)
+        (tmp_dir / path.name).symlink_to(path.resolve())
+        yield tmp_dir
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the argparse parser for the unified split+convert CLI."""
     parser = argparse.ArgumentParser(
@@ -29,8 +41,8 @@ def build_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""\
 examples:
-  %(prog)s input.pdf                          # split + convert with marker, 1 worker
-  %(prog)s input.pdf --engine docling         # use docling instead
+  %(prog)s input.pdf                          # split + convert with mineru, 1 worker
+  %(prog)s input.pdf --engine marker          # use marker instead
   %(prog)s input.pdf --workers 8              # more parallelism
   %(prog)s input.pdf --name tb880             # override the output folder name
   %(prog)s input.pdf --skip-split             # convert an already-split references/<name>/
@@ -43,8 +55,9 @@ examples:
         help="output folder name for this document (default: input file stem)",
     )
     parser.add_argument(
-        "--references-dir", type=Path, default=Path("references"),
-        help="parent directory for split-out chapter PDFs (default: references)",
+        "--references-dir", type=Path, default=None,
+        help="parent directory for split-out chapter PDFs (default: references; "
+             "with --skip-split, defaults to the input file's own directory instead)",
     )
     parser.add_argument(
         "--outputs-dir", type=Path, default=Path("outputs"),
@@ -72,7 +85,8 @@ examples:
     )
     parser.add_argument(
         "--skip-split", action="store_true",
-        help="skip splitting; convert whatever already exists in <references-dir>/<name>/",
+        help="skip splitting; convert the PDF(s) already in <references-dir>/<name>/ if "
+             "--references-dir was given, otherwise in the input file's own directory",
     )
     parser.add_argument("--version", action="version", version="%(prog)s 1.0.0")
     return parser
@@ -96,10 +110,24 @@ def main() -> None:  # pylint: disable=too-many-locals,too-many-branches,too-man
         parser.error(f"Input file not found: {args.input}")
 
     name = args.name or args.input.stem
-    split_dir = args.references_dir / name
     output_dir = args.outputs_dir / name
 
-    if not args.skip_split:
+    single_file = None
+    if args.skip_split:
+        if args.references_dir:
+            # Caller pointed us at an existing <references-dir>/<name>/ of
+            # already-split chapters - convert the whole thing, as before.
+            split_dir = args.references_dir / name
+            if not split_dir.is_dir():
+                parser.error(f"--skip-split given but {split_dir} does not exist")
+        else:
+            # No references-dir given: `input` is already a single, presumably
+            # pre-split chapter PDF. Convert just that file rather than every
+            # other PDF that happens to sit alongside it in the same directory.
+            single_file = args.input
+            split_dir = args.input
+    else:
+        split_dir = (args.references_dir or Path("references")) / name
         reader = PdfReader(str(args.input))
         page_count = len(reader.pages)
 
@@ -150,13 +178,15 @@ def main() -> None:  # pylint: disable=too-many-locals,too-many-branches,too-man
 
         write_chapters(reader, ranges, split_dir)
         print(f"Wrote {len(ranges)} chapter files to {split_dir}\n")
-    elif not split_dir.is_dir():
-        parser.error(f"--skip-split given but {split_dir} does not exist")
 
     convert = get_engine(args.engine)
     print(f"Converting {split_dir} -> {output_dir} with engine '{args.engine}' ({args.workers} workers)")
     try:
-        convert(split_dir, output_dir, args.workers, engine_args)
+        if single_file is not None:
+            with _single_file_dir(single_file) as tmp_dir:
+                convert(tmp_dir, output_dir, args.workers, engine_args)
+        else:
+            convert(split_dir, output_dir, args.workers, engine_args)
     except RuntimeError as exc:
         parser.error(str(exc))
 

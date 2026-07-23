@@ -4,16 +4,15 @@ Each engine module exposes a `convert(input_dir, output_dir, workers, extra_args
 function that shells out to that engine's own batch-conversion CLI.
 """
 
-from . import docling, marker, mineru, paddleocr
+from . import marker, mineru, paddleocr
 
 ENGINES = {
-    "marker": marker.convert,
-    "docling": docling.convert,
     "mineru": mineru.convert,
+    "marker": marker.convert,
     "paddleocr": paddleocr.convert,
 }
 
-DEFAULT_ENGINE = "marker"
+DEFAULT_ENGINE = "mineru"
 
 
 def get_engine(name: str):

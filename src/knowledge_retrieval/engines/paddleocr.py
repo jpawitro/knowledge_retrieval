@@ -29,6 +29,16 @@ def _convert_one(pdf_path: Path, output_dir: Path, pipeline) -> None:
     doc_dir.mkdir(parents=True, exist_ok=True)
     merged.save_to_markdown(doc_dir / f"{pdf_path.stem}.md")
 
+    # concatenate_markdown_pages() only keeps each page's markdown_texts and
+    # drops its markdown_images, so the merged result can't write the images
+    # the merged text still references - save them from the per-page results
+    # ourselves, using the same img_path keys the markdown text points at.
+    for page_markdown in markdown_list:
+        for img_path, img in page_markdown.get("markdown_images", {}).items():
+            img_file = doc_dir / img_path
+            img_file.parent.mkdir(parents=True, exist_ok=True)
+            img.save(img_file)
+
 
 def _convert_shard(pdf_paths: list[Path], output_dir: Path) -> None:
     """Convert a shard of files sequentially with one shared PPStructureV3 instance."""

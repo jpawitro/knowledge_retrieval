@@ -39,7 +39,7 @@ def sample_input_dir(tmp_path_factory) -> Path:
 
 def _engine_available(engine_name: str) -> bool:
     """Check whether the given engine's dependency is installed."""
-    if engine_name in ("marker", "mineru", "docling"):
+    if engine_name in ("marker", "mineru"):
         return shutil.which(engine_name) is not None
     if engine_name == "paddleocr":
         return importlib.util.find_spec("paddleocr") is not None

@@ -1,5 +1,0 @@
-# Core dependency only - no conversion engine is installed by default.
-# Install the engine(s) you need via pyproject extras instead, e.g.:
-#   pip install -e ".[docling,mineru,paddleocr]"
-# See README.md for the full list of engine extras (marker, docling, mineru, paddleocr).
-pypdf>=6.0.0
