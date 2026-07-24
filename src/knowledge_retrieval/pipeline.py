@@ -24,9 +24,11 @@ from knowledge_retrieval.split_chapters import (
 
 
 @contextmanager
-def _single_file_dir(path: Path):
+def single_file_dir(path: Path):
     """Yield a scratch directory containing only `path`, since every engine's
-    `convert()` batch-processes whatever PDFs it finds in a directory."""
+    `convert()` batch-processes whatever PDFs it finds in a directory. Also
+    used by the crawl pipeline's PDF branch (crawl_pdf.py) for the same
+    reason - a downloaded PDF is a single file, not a directory."""
     with tempfile.TemporaryDirectory() as tmp:
         tmp_dir = Path(tmp)
         (tmp_dir / path.name).symlink_to(path.resolve())
@@ -183,7 +185,7 @@ def main() -> None:  # pylint: disable=too-many-locals,too-many-branches,too-man
     print(f"Converting {split_dir} -> {output_dir} with engine '{args.engine}' ({args.workers} workers)")
     try:
         if single_file is not None:
-            with _single_file_dir(single_file) as tmp_dir:
+            with single_file_dir(single_file) as tmp_dir:
                 convert(tmp_dir, output_dir, args.workers, engine_args)
         else:
             convert(split_dir, output_dir, args.workers, engine_args)

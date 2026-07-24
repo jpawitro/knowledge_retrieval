@@ -1,11 +1,12 @@
 [project]
 name = "knowledge-retrieval"
 version = "1.0.0"
-description = "Split PDFs into chapters and convert them to Markdown via pluggable engines (mineru, marker, paddleocr)"
+description = "Split PDFs into chapters and convert them to Markdown, and scrape URLs to Markdown, via pluggable engines (mineru, marker, paddleocr, crawl4ai, firecrawl)"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "pypdf>=6.0.0",
+    "python-dotenv>=1.0.0",
 ]
 
 [project.optional-dependencies]
@@ -19,6 +20,13 @@ paddleocr = [
     "paddleocr[doc-parser]>=3.0.0",
     "paddlepaddle>=3.0.0",
 ]
+crawl4ai = [
+    "crawl4ai>=0.6.0",
+    "trafilatura>=1.8.0",
+]
+firecrawl = [
+    "firecrawl-py>=2.0.0",
+]
 test = [
     "pytest>=8.0.0",
     "reportlab>=4.0.0",
@@ -28,6 +36,8 @@ test = [
 knowledge-retrieval = "knowledge_retrieval.pipeline:main"
 knowledge-retrieval-extract = "knowledge_retrieval.extract:main"
 knowledge-retrieval-split = "knowledge_retrieval.split_chapters:main"
+knowledge-retrieval-web = "knowledge_retrieval.web:main"
+knowledge-retrieval-crawl = "knowledge_retrieval.crawl_cli:main"
 
 [build-system]
 requires = ["setuptools>=68"]
