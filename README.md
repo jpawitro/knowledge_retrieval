@@ -89,6 +89,20 @@ The output folder name is derived from the input file's stem by default (`tb880.
 `tb880/`), so split PDFs and their converted Markdown always land in matching
 `references/<name>/` and `outputs/<name>/` folders.
 
+Any chapter longer than 30 pages is automatically divided into roughly-equal, max-size
+sub-parts, since some conversion engines slow down or lose accuracy on very long inputs:
+a 35-page chapter becomes two files (18 + 17 pages), a 98-page chapter becomes four (25 +
+25 + 25 + 23 pages), etc. Sub-parts are named with a `_NN` suffix, e.g.
+`04_Cable_Losses_Overview_01.pdf`, `04_Cable_Losses_Overview_02.pdf`. Pass `--max-pages`
+to change the threshold (or set it very high to effectively disable sub-splitting).
+
+Chapters already converted are skipped automatically: before converting, each chapter
+PDF is checked against `outputs/<name>/<chapter-stem>/<chapter-stem>.md`, and any that
+already exist are left alone. This makes it safe to re-run the same command to pick up
+where a previous run crashed or was interrupted, or to batch-convert a folder of
+already-split references a few PDFs at a time. Pass `--force` to reconvert everything
+regardless of what's already in `outputs/`.
+
 Common options:
 
 ```bash
@@ -97,7 +111,9 @@ uv run knowledge-retrieval input.pdf --engine paddleocr      # use paddleocr (PP
 uv run knowledge-retrieval input.pdf --workers 8             # more parallelism (opt-in; see Engines below)
 uv run knowledge-retrieval input.pdf --name tb880            # override the output folder name
 uv run knowledge-retrieval input.pdf --split-mode headings   # force heading-detection over bookmarks
+uv run knowledge-retrieval input.pdf --max-pages 50           # allow chapters up to 50 pages before sub-splitting
 uv run knowledge-retrieval input.pdf --skip-split            # convert an already-split references/<name>/
+uv run knowledge-retrieval input.pdf --force                 # reconvert even chapters already in outputs/<name>/
 uv run knowledge-retrieval input.pdf -- --disable_image_extraction  # pass extra args through to the engine's own CLI
 ```
 
@@ -109,8 +125,13 @@ Run `uv run knowledge-retrieval -h` for the full option list.
 uv run knowledge-retrieval-split input.pdf -o chapters/                  # auto: bookmarks, else heuristic
 uv run knowledge-retrieval-split input.pdf -o chapters/ --mode bookmarks  # force bookmarks only
 uv run knowledge-retrieval-split input.pdf -o chapters/ --mode headings   # force heading-detection
+uv run knowledge-retrieval-split input.pdf -o chapters/ --max-pages 50    # allow chapters up to 50 pages before sub-splitting
 uv run knowledge-retrieval-split input.pdf --list                         # just list chapters, write nothing
 ```
+
+Chapters over 30 pages (by default) are automatically divided into roughly-equal,
+max-size sub-parts named with a `_NN` suffix - see [Full pipeline](#full-pipeline-split--convert)
+above for details.
 
 Run `uv run knowledge-retrieval-split -h` for the full option list.
 

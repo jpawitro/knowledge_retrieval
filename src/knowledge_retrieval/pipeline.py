@@ -15,6 +15,7 @@ from pypdf import PdfReader
 
 from knowledge_retrieval.engines import DEFAULT_ENGINE, ENGINES, get_engine
 from knowledge_retrieval.split_chapters import (
+    compute_page_chunks,
     detect_heading_chapters,
     get_bookmark_chapters,
     merge_same_page_chapters,
@@ -33,6 +34,27 @@ def single_file_dir(path: Path):
         tmp_dir = Path(tmp)
         (tmp_dir / path.name).symlink_to(path.resolve())
         yield tmp_dir
+
+
+@contextmanager
+def subset_dir(paths: list[Path]):
+    """Yield a scratch directory containing symlinks to just `paths`, so a
+    batch engine's directory scan only sees the subset that still needs
+    converting rather than every PDF sitting in the source directory."""
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_dir = Path(tmp)
+        for path in paths:
+            (tmp_dir / path.name).symlink_to(path.resolve())
+        yield tmp_dir
+
+
+def is_already_converted(output_dir: Path, stem: str) -> bool:
+    """A chapter counts as already converted if <output_dir>/<stem>/<stem>.md
+    exists anywhere under that directory - the flattened `<stem>/<stem>.md`
+    shape engines write today, or an older/nested one such as mineru's
+    pre-flatten `<stem>/<backend>/<stem>.md` (e.g. `<stem>/hybrid_auto/<stem>.md`)."""
+    doc_dir = output_dir / stem
+    return doc_dir.is_dir() and any(doc_dir.rglob(f"{stem}.md"))
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -78,6 +100,11 @@ examples:
         help="minimum pages between detected headings, filters false positives (default: 2)",
     )
     parser.add_argument(
+        "--max-pages", type=int, default=30,
+        help="split any chapter longer than this into roughly-equal, max-size "
+             "sub-parts, e.g. '<name>_01.pdf', '<name>_02.pdf' (default: 30)",
+    )
+    parser.add_argument(
         "--engine", choices=sorted(ENGINES), default=DEFAULT_ENGINE,
         help=f"PDF-to-Markdown conversion engine (default: {DEFAULT_ENGINE})",
     )
@@ -89,6 +116,11 @@ examples:
         "--skip-split", action="store_true",
         help="skip splitting; convert the PDF(s) already in <references-dir>/<name>/ if "
              "--references-dir was given, otherwise in the input file's own directory",
+    )
+    parser.add_argument(
+        "--force", action="store_true",
+        help="reconvert every chapter even if <outputs-dir>/<name>/<stem>/<stem>.md "
+             "already exists (default: skip chapters already converted)",
     )
     parser.add_argument("--version", action="version", version="%(prog)s 1.0.0")
     return parser
@@ -178,17 +210,40 @@ def main() -> None:  # pylint: disable=too-many-locals,too-many-branches,too-man
             print(f"  pages {start + 1:>4}-{end:<4} ({end - start:>3} pages)  {ch.title}")
         print()
 
-        write_chapters(reader, ranges, split_dir)
-        print(f"Wrote {len(ranges)} chapter files to {split_dir}\n")
+        write_chapters(reader, ranges, split_dir, max_pages=args.max_pages)
+        file_count = sum(len(compute_page_chunks(end - start, args.max_pages)) for _, start, end in ranges)
+        print(f"Wrote {file_count} chapter file(s) to {split_dir}\n")
 
     convert = get_engine(args.engine)
-    print(f"Converting {split_dir} -> {output_dir} with engine '{args.engine}' ({args.workers} workers)")
+
+    if single_file is not None:
+        pdf_files = [single_file]
+    else:
+        pdf_files = sorted(split_dir.glob("*.pdf"))
+
+    if args.force:
+        todo = pdf_files
+    else:
+        todo = [p for p in pdf_files if not is_already_converted(output_dir, p.stem)]
+        skipped = len(pdf_files) - len(todo)
+        if skipped:
+            print(f"Skipping {skipped} chapter(s) already converted in {output_dir} (use --force to redo)")
+
+    if not todo:
+        print(f"Nothing to convert - {output_dir} is already up to date.")
+        return
+
+    print(f"Converting {len(todo)} file(s) from {split_dir} -> {output_dir} "
+          f"with engine '{args.engine}' ({args.workers} workers)")
     try:
-        if single_file is not None:
-            with single_file_dir(single_file) as tmp_dir:
+        if len(todo) == 1:
+            with single_file_dir(todo[0]) as tmp_dir:
                 convert(tmp_dir, output_dir, args.workers, engine_args)
-        else:
+        elif len(todo) == len(pdf_files):
             convert(split_dir, output_dir, args.workers, engine_args)
+        else:
+            with subset_dir(todo) as tmp_dir:
+                convert(tmp_dir, output_dir, args.workers, engine_args)
     except RuntimeError as exc:
         parser.error(str(exc))
 

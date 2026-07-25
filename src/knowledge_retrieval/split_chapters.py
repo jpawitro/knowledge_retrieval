@@ -2,6 +2,7 @@
 if present, else a heading-detection heuristic on page text."""
 
 import argparse
+import math
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -117,6 +118,20 @@ def split_by_chapters(chapters: list[Chapter], page_count: int) -> list[tuple[Ch
     return ranges
 
 
+def compute_page_chunks(total_pages: int, max_pages: int) -> list[int]:
+    """Split `total_pages` into as few roughly-equal chunks as possible, each
+    capped at `max_pages`. All but the last chunk share the same size
+    (ceil(total_pages / parts)); the last one takes whatever remains, e.g.
+    35 pages at max 30 -> [18, 17], 98 pages at max 30 -> [25, 25, 25, 23]."""
+    if total_pages <= max_pages:
+        return [total_pages]
+    parts = math.ceil(total_pages / max_pages)
+    chunk_size = math.ceil(total_pages / parts)
+    chunks = [chunk_size] * (parts - 1)
+    chunks.append(total_pages - chunk_size * (parts - 1))
+    return chunks
+
+
 def sanitize_filename(title: str, max_len: int = 60) -> str:
     """Turn a chapter title into a safe, length-capped filename fragment."""
     name = re.sub(r"[^\w\s-]", "", title).strip()
@@ -124,21 +139,48 @@ def sanitize_filename(title: str, max_len: int = 60) -> str:
     return name[:max_len] or "chapter"
 
 
-def write_chapters(reader: PdfReader, ranges, output_dir: Path) -> None:
-    """Write one PDF file per (chapter, start, end) range into output_dir."""
+def _write_one(reader: PdfReader, start: int, end: int, out_path: Path) -> None:
+    """Write pages [start, end) from `reader` to a new PDF at `out_path`."""
+    writer = PdfWriter()
+    for p in range(start, end):
+        writer.add_page(reader.pages[p])
+    with open(out_path, "wb") as f:
+        writer.write(f)
+
+
+def write_chapters(reader: PdfReader, ranges, output_dir: Path, max_pages: int = 30) -> None:
+    """Write one PDF file per (chapter, start, end) range into output_dir.
+
+    A chapter longer than `max_pages` is automatically divided into
+    roughly-equal sub-parts (see compute_page_chunks), each written as its
+    own file with a `_NN` suffix, e.g. a 98-page chapter becomes
+    `..._01.pdf` (25p), `..._02.pdf` (25p), `..._03.pdf` (25p), `..._04.pdf` (23p).
+    """
     output_dir.mkdir(parents=True, exist_ok=True)
     for i, (ch, start, end) in enumerate(ranges, start=1):
         if end <= start:
             print(f"  SKIPPED (zero-page range): {ch.title} (page {start + 1})")
             continue
-        writer = PdfWriter()
-        for p in range(start, end):
-            writer.add_page(reader.pages[p])
-        fname = f"{i:02d}_{sanitize_filename(ch.title)}.pdf"
-        out_path = output_dir / fname
-        with open(out_path, "wb") as f:
-            writer.write(f)
-        print(f"  {fname}: pages {start + 1}-{end} ({end - start} pages) - {ch.title}")
+
+        base_name = f"{i:02d}_{sanitize_filename(ch.title)}"
+        chunks = compute_page_chunks(end - start, max_pages)
+
+        if len(chunks) == 1:
+            fname = f"{base_name}.pdf"
+            _write_one(reader, start, end, output_dir / fname)
+            print(f"  {fname}: pages {start + 1}-{end} ({end - start} pages) - {ch.title}")
+            continue
+
+        part_start = start
+        for part_num, chunk_pages in enumerate(chunks, start=1):
+            part_end = part_start + chunk_pages
+            fname = f"{base_name}_{part_num:02d}.pdf"
+            _write_one(reader, part_start, part_end, output_dir / fname)
+            print(
+                f"  {fname}: pages {part_start + 1}-{part_end} ({chunk_pages} pages) "
+                f"- {ch.title} (part {part_num}/{len(chunks)})"
+            )
+            part_start = part_end
 
 
 def main() -> None:
@@ -173,6 +215,11 @@ examples:
     parser.add_argument(
         "--min-gap", type=int, default=2,
         help="minimum pages between detected headings, filters false positives (default: 2)",
+    )
+    parser.add_argument(
+        "--max-pages", type=int, default=30,
+        help="split any chapter longer than this into roughly-equal, max-size "
+             "sub-parts, e.g. '<name>_01.pdf', '<name>_02.pdf' (default: 30)",
     )
     parser.add_argument(
         "--list", action="store_true",
@@ -237,8 +284,9 @@ examples:
     if args.list:
         return
 
-    write_chapters(reader, ranges, args.output_dir)
-    print(f"\nWrote {len(ranges)} chapter files to {args.output_dir}")
+    write_chapters(reader, ranges, args.output_dir, max_pages=args.max_pages)
+    file_count = sum(len(compute_page_chunks(end - start, args.max_pages)) for _, start, end in ranges)
+    print(f"\nWrote {file_count} chapter file(s) to {args.output_dir}")
 
 
 if __name__ == "__main__":
