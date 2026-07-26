@@ -133,6 +133,45 @@ def test_main_force_reconverts_everything(  # pylint: disable=redefined-outer-na
     assert fake_convert.calls == [{"01_intro.pdf", "02_body.pdf"}]
 
 
+def test_main_folder_processes_every_pdf(  # pylint: disable=redefined-outer-name
+    tmp_path, monkeypatch, fake_convert
+):
+    folder = tmp_path / "incoming"
+    outputs_dir = tmp_path / "outputs"
+
+    _touch_pdf(folder / "doc1.pdf")
+    _touch_pdf(folder / "doc2.pdf")
+
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "knowledge-retrieval",
+            "--folder", str(folder),
+            "--outputs-dir", str(outputs_dir),
+            "--skip-split",
+        ],
+    )
+
+    pipeline.main()
+
+    assert fake_convert.calls == [{"doc1.pdf"}, {"doc2.pdf"}]
+    assert pipeline.is_already_converted(outputs_dir / "doc1", "doc1")
+    assert pipeline.is_already_converted(outputs_dir / "doc2", "doc2")
+
+
+def test_main_folder_rejects_name_option(tmp_path, monkeypatch):
+    folder = tmp_path / "incoming"
+    _touch_pdf(folder / "doc1.pdf")
+
+    monkeypatch.setattr(
+        "sys.argv",
+        ["knowledge-retrieval", "--folder", str(folder), "--name", "doc"],
+    )
+
+    with pytest.raises(SystemExit):
+        pipeline.main()
+
+
 def test_main_reports_nothing_to_do_when_all_converted(  # pylint: disable=redefined-outer-name
     tmp_path, monkeypatch, fake_convert
 ):

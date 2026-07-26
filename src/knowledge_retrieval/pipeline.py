@@ -72,6 +72,7 @@ examples:
   %(prog)s input.pdf --skip-split             # convert an already-split references/<name>/
   %(prog)s input.pdf -- --disable_image_extraction   # extra args passed to the engine's own CLI
   %(prog)s --queue queue.yaml                 # batch: split + convert every PDF listed in a YAML queue
+  %(prog)s --folder path/to/folder            # batch: split + convert every PDF in a folder, same options for each
 
 queue.yaml (batch mode - see README for the full schema; same file format as
 knowledge-retrieval-split's --queue, plus pipeline-only keys name/references_dir/
@@ -148,6 +149,13 @@ outputs_dir/engine/workers/skip_split/force/engine_args):
         "--queue", type=Path, default=None,
         help="YAML file listing multiple PDFs to split and convert in one run, instead of "
         "a single positional input (see the epilog above for the schema)",
+    )
+    parser.add_argument(
+        "--folder", type=Path, default=None,
+        help="directory of PDFs to split and convert in one run, instead of a single "
+        "positional input - every *.pdf directly inside it is processed with the same "
+        "options (--name is not allowed with --folder, since each file's output folder "
+        "name comes from its own stem)",
     )
     parser.add_argument("--version", action="version", version="%(prog)s 1.0.0")
     return parser
@@ -271,10 +279,49 @@ def main() -> None:  # pylint: disable=too-many-locals,too-many-branches,too-man
 
     args = parser.parse_args(argv)
 
-    if args.queue and args.input:
-        parser.error("pass either a single input PDF or --queue, not both")
-    if not args.queue and args.input is None:
-        parser.error("an input PDF is required unless --queue is given")
+    modes_given = sum(bool(x) for x in (args.input, args.queue, args.folder))
+    if modes_given > 1:
+        parser.error("pass only one of: a single input PDF, --queue, or --folder")
+    if modes_given == 0:
+        parser.error("an input PDF is required unless --queue or --folder is given")
+    if args.folder and args.name:
+        parser.error("--name is not allowed with --folder (each file's output folder name "
+                      "comes from its own stem)")
+
+    if args.folder:
+        if not args.folder.is_dir():
+            parser.error(f"--folder not found or not a directory: {args.folder}")
+        pdf_paths = sorted(args.folder.glob("*.pdf"))
+        if not pdf_paths:
+            parser.error(f"no PDF files found in folder {args.folder}")
+
+        had_error = False
+        for i, input_path in enumerate(pdf_paths, start=1):
+            print(f"\n=== [{i}/{len(pdf_paths)}] {input_path} ===")
+            try:
+                process_one(
+                    input_path=input_path,
+                    name=None,
+                    references_dir=args.references_dir,
+                    outputs_dir=args.outputs_dir,
+                    mode=args.mode,
+                    bookmark_level=args.bookmark_level,
+                    exclude_title=args.exclude_title,
+                    min_gap=args.min_gap,
+                    max_pages=args.max_pages,
+                    engine_name=args.engine,
+                    workers=args.workers,
+                    skip_split=args.skip_split,
+                    force=args.force,
+                    engine_args=engine_args,
+                )
+            except (FileNotFoundError, ValueError, RuntimeError) as e:
+                print(f"  ERROR: {e}")
+                had_error = True
+
+        if had_error:
+            raise SystemExit(1)
+        return
 
     if not args.queue:
         try:

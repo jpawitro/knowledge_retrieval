@@ -148,6 +148,22 @@ files:
 uv run knowledge-retrieval --queue queue.yaml
 ```
 
+#### Batch mode: a folder of PDFs
+
+Pass `--folder path/to/folder` instead of a positional input to split and convert every
+`*.pdf` directly inside that folder, one at a time, using the same options (`--engine`,
+`--mode`, `--workers`, etc.) for each file. Each file's output folder name comes from its
+own stem, so `--name` isn't allowed with `--folder`.
+
+```bash
+uv run knowledge-retrieval --folder path/to/folder
+uv run knowledge-retrieval --folder path/to/folder --engine marker --workers 8
+```
+
+This is a simpler alternative to `--queue` when every file should use identical options -
+use `--queue` instead when different files need different settings (e.g. manual chapter
+ranges or a different engine per file).
+
 ### Split only
 
 ```bash
