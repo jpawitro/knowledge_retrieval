@@ -15,10 +15,19 @@ COMMAND = "mineru"
 
 def _run(path: Path, output_dir: Path, extra_args: list[str]) -> None:
     """Run one `mineru` invocation over a single file or directory."""
-    subprocess.run(
-        [COMMAND, "-p", str(path), "-o", str(output_dir), *extra_args],
-        check=True,
-    )
+    try:
+        subprocess.run(
+            [COMMAND, "-p", str(path), "-o", str(output_dir), *extra_args],
+            check=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        # A failure inside one document (e.g. mineru's own "N task(s) failed"
+        # for a malformed/unsupported chapter PDF) surfaces as a non-zero
+        # exit here. Re-raise as RuntimeError so callers (pipeline.py) treat
+        # it the same as any other engine failure - a clean, catchable error
+        # for this one file/batch - instead of an uncaught CalledProcessError
+        # crashing the whole run (and, in --queue mode, the entire batch).
+        raise RuntimeError(f"mineru failed converting {path} (exit code {exc.returncode})") from exc
 
 
 def _run_shard(paths: list[Path], output_dir: Path, extra_args: list[str]) -> None:

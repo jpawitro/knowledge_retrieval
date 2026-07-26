@@ -27,4 +27,11 @@ def convert(input_dir: Path, output_dir: Path, workers: int, extra_args: list[st
         "--workers", str(workers),
         *extra_args,
     ]
-    subprocess.run(command, check=True)
+    try:
+        subprocess.run(command, check=True)
+    except subprocess.CalledProcessError as exc:
+        # Same rationale as mineru.py's _run(): translate a non-zero exit
+        # into a RuntimeError so callers (pipeline.py) can catch and report
+        # it per-file/per-batch instead of crashing on an uncaught
+        # CalledProcessError.
+        raise RuntimeError(f"marker failed converting {input_dir} (exit code {exc.returncode})") from exc
