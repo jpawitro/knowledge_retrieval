@@ -2049,6 +2049,7 @@ source = { editable = "." }
 dependencies = [
     { name = "pypdf" },
     { name = "python-dotenv" },
+    { name = "pyyaml" },
 ]
 
 [package.optional-dependencies]
@@ -2085,6 +2086,7 @@ requires-dist = [
     { name = "pypdf", specifier = ">=6.0.0" },
     { name = "pytest", marker = "extra == 'test'", specifier = ">=8.0.0" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
+    { name = "pyyaml", specifier = ">=6.0.0" },
     { name = "reportlab", marker = "extra == 'test'", specifier = ">=4.0.0" },
     { name = "trafilatura", marker = "extra == 'crawl4ai'", specifier = ">=1.8.0" },
 ]

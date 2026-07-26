@@ -110,7 +110,7 @@ uv run knowledge-retrieval input.pdf --engine marker         # use marker instea
 uv run knowledge-retrieval input.pdf --engine paddleocr      # use paddleocr (PP-StructureV3) instead of mineru
 uv run knowledge-retrieval input.pdf --workers 8             # more parallelism (opt-in; see Engines below)
 uv run knowledge-retrieval input.pdf --name tb880            # override the output folder name
-uv run knowledge-retrieval input.pdf --split-mode headings   # force heading-detection over bookmarks
+uv run knowledge-retrieval input.pdf --mode headings         # force heading-detection over bookmarks
 uv run knowledge-retrieval input.pdf --max-pages 50           # allow chapters up to 50 pages before sub-splitting
 uv run knowledge-retrieval input.pdf --skip-split            # convert an already-split references/<name>/
 uv run knowledge-retrieval input.pdf --force                 # reconvert even chapters already in outputs/<name>/
@@ -119,6 +119,35 @@ uv run knowledge-retrieval input.pdf -- --disable_image_extraction  # pass extra
 
 Run `uv run knowledge-retrieval -h` for the full option list.
 
+#### Batch mode: a YAML queue
+
+Pass `--queue queue.yaml` instead of a positional input to split and convert several
+PDFs in one run. It's the same queue file format as `knowledge-retrieval-split`'s
+`--queue` (see below), plus pipeline-only per-file/`defaults` keys: `name`,
+`references_dir`, `outputs_dir`, `engine`, `workers`, `skip_split`, `force`, and
+`engine_args` (a list, standing in for the trailing `-- ...` engine args).
+
+```yaml
+# queue.yaml
+defaults:
+  outputs_dir: outputs
+  engine: mineru
+
+files:
+  - path: /path/to/book1.pdf
+    chapters:                     # manual page ranges - skips detection entirely
+      - chapter 1, 1-10
+      - chapter 2, 11-20
+
+  - path: /path/to/book2.pdf       # no `chapters`: falls back to bookmark/heading detection
+    bookmark_level: 1              # per-file override of defaults/CLI (wins over both)
+    engine: marker                 # can override the engine per file too
+```
+
+```bash
+uv run knowledge-retrieval --queue queue.yaml
+```
+
 ### Split only
 
 ```bash
@@ -126,14 +155,75 @@ uv run knowledge-retrieval-split input.pdf -o chapters/                  # auto:
 uv run knowledge-retrieval-split input.pdf -o chapters/ --mode bookmarks  # force bookmarks only
 uv run knowledge-retrieval-split input.pdf -o chapters/ --mode headings   # force heading-detection
 uv run knowledge-retrieval-split input.pdf -o chapters/ --max-pages 50    # allow chapters up to 50 pages before sub-splitting
+uv run knowledge-retrieval-split input.pdf -o chapters/ --bookmark-level 1  # chapters are the 2nd-level bookmarks
 uv run knowledge-retrieval-split input.pdf --list                         # just list chapters, write nothing
 ```
+
+`-o/--output-dir` is a *parent* directory: chapters land in `<output-dir>/<input-stem>/`,
+e.g. `input.pdf` with `-o chapters/` writes to `chapters/input/` - matching
+`knowledge-retrieval`'s `references_dir`/`outputs_dir` convention of nesting each
+document's output under its own `<name>/` subfolder.
 
 Chapters over 30 pages (by default) are automatically divided into roughly-equal,
 max-size sub-parts named with a `_NN` suffix - see [Full pipeline](#full-pipeline-split--convert)
 above for details.
 
+Some PDFs' outline entries aren't all at the same conceptual level, or mix in
+non-chapter entries alongside real ones:
+
+- `--bookmark-level N` picks one exact nesting level as the chapters (0 =
+  top-level, the default; 1 = second-level, etc.) - useful when, e.g., the
+  top-level bookmarks are just container/file wrappers and the real sections
+  live one level deeper.
+- `--exclude-title REGEX` (case-insensitive) drops any bookmark at that level
+  whose title matches - e.g. `--exclude-title '^(Figures|Tables)$'` for
+  outlines that mix in a non-hierarchical "Figures"/"Tables" grouping
+  bookmark alongside the real chapters.
+
 Run `uv run knowledge-retrieval-split -h` for the full option list.
+
+#### Batch mode: a YAML queue
+
+Pass `--queue queue.yaml` instead of a positional input to split several PDFs
+in one run, optionally with manually-specified chapter page ranges per file
+(bypassing bookmark/heading detection entirely for that file). Manual
+chapters still go through the same `--max-pages` sub-splitting as detected
+ones.
+
+```yaml
+# queue.yaml
+defaults:               # applied to every file below, unless a file overrides a key
+  output_dir: chapters   # each file gets its own chapters/<stem>/ subfolder
+  max_pages: 30          # still applies to manual chapters, same as the CLI default
+
+files:
+  - path: /path/to/book1.pdf
+    chapters:                     # manual page ranges (1-indexed, inclusive) - skips detection
+      - chapter 1, 1-10
+      - chapter 2, 11-20
+
+  - path: /path/to/book2.pdf
+    chapters:
+      - chapter 1, 1-14
+      - chapter 2, 15-43
+
+  - path: /path/to/book3.pdf       # no `chapters`: falls back to bookmark/heading detection
+    bookmark_level: 1              # per-file override of defaults/CLI (wins over both)
+    exclude_title: '^(Figures|Tables)$'
+```
+
+Any of `output_dir`, `mode`, `bookmark_level`, `exclude_title`, `min_gap`, `max_pages` can
+be set in `defaults` (applies to every file) or on an individual file entry (wins over
+`defaults` and the CLI flags for that file only). `output_dir` is always a parent directory -
+every file's chapters land in `<output_dir>/<input-stem>/`, whether `output_dir` came from
+`defaults`, a file's own entry, or `-o` on the command line. Two queue entries pointing at the
+same source file (same stem) will still collide - give one of them its own distinct
+`output_dir` in that case.
+
+```bash
+uv run knowledge-retrieval-split --queue queue.yaml --list   # preview every file's chapters first
+uv run knowledge-retrieval-split --queue queue.yaml          # then actually write them
+```
 
 ### Extract a page range
 

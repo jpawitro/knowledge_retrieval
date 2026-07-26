@@ -1,0 +1,37 @@
+# Example queue file for `knowledge-retrieval-split --queue queue.yaml`.
+# Preview first, then write:
+#   uv run knowledge-retrieval-split --queue queue.example.yaml --list
+#   uv run knowledge-retrieval-split --queue queue.example.yaml
+#
+# `knowledge-retrieval --queue queue.yaml` (the full split+convert pipeline)
+# accepts this same defaults/files/chapters structure, but its per-file/defaults
+# option keys mirror its own flags instead: `references_dir` and `outputs_dir`
+# in place of `output_dir` here, plus pipeline-only keys `name`, `engine`,
+# `workers`, `skip_split`, `force`, `engine_args` - see the README.
+
+defaults:
+  # Applied to every file below unless a file overrides the same key.
+  # Each file gets its own output_dir/<file-stem>/ subfolder.
+  output_dir: references
+  max_pages: 30
+
+files:
+  # Manual chapters: explicit 1-indexed, inclusive page ranges. Skips
+  # bookmark/heading detection entirely for this file. Still subject to
+  # max_pages sub-splitting if a chapter comes out longer than that.
+  - path: /path/to/book1.pdf
+    chapters:
+      - chapter 1, 1-10
+      - chapter 2, 11-20
+
+  - path: /path/to/book2.pdf
+    chapters:
+      - chapter 1, 1-14
+      - chapter 2, 15-43
+
+  # No `chapters`: falls back to bookmark/heading detection. Per-file keys
+  # (bookmark_level, exclude_title, mode, min_gap, max_pages, output_dir)
+  # override both `defaults` above and the CLI flags for this file only.
+  - path: /path/to/book3.pdf
+    bookmark_level: 1
+    exclude_title: '^(Figures|Tables)\s*$'
